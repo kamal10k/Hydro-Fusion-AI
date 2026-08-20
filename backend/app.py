@@ -1,5 +1,5 @@
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 
 from backend.config import Config
@@ -14,8 +14,15 @@ from backend.routes.n8n_routes import n8n_bp
 from backend.routes.forecast_routes import forecast_bp
 from backend.routes.analytics_routes import analytics_bp
 
+dist_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'dist'))
+
+
 def create_app():
-    app = Flask(__name__)
+    if os.path.exists(dist_folder):
+        app = Flask(__name__, static_folder=dist_folder, static_url_path='')
+    else:
+        app = Flask(__name__)
+
     app.config.from_object(Config)
     
     # Enable CORS for all routes (Vite frontend on 5173 / production build)
@@ -46,34 +53,28 @@ def create_app():
     app.register_blueprint(forecast_bp)
     app.register_blueprint(analytics_bp)
 
-    @app.route('/')
-    def root():
-        return jsonify({
-            'system': 'HydroFusion AI - The Digital Chemist',
-            'version': '2.0.0-PRO',
-            'status': 'OPERATIONAL',
-            'endpoints': [
-                '/api/auth/login',
-                '/api/predict',
-                '/api/simulate',
-                '/api/forecast/24h',
-                '/api/analytics/daily',
-                '/api/analytics/weekly',
-                '/api/analytics/monthly',
-                '/api/history',
-                '/api/dashboard/stats',
-                '/api/chat',
-                '/api/alerts',
-                '/api/alerts/thresholds',
-                '/api/report/export'
-            ]
-        })
-
     @app.route('/api/health')
     def health():
         return jsonify({'status': 'HEALTHY', 'database': 'CONNECTED'})
 
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def catch_all(path):
+        if path.startswith('api/'):
+            return jsonify({'error': 'Endpoint Not Found', 'path': path}), 404
+        if os.path.exists(dist_folder):
+            file_path = os.path.join(dist_folder, path)
+            if path != "" and os.path.exists(file_path):
+                return send_from_directory(dist_folder, path)
+            return send_from_directory(dist_folder, 'index.html')
+        return jsonify({
+            'system': 'HydroFusion AI - The Digital Chemist',
+            'version': '2.0.0-PRO',
+            'status': 'OPERATIONAL'
+        })
+
     return app
+
 
 app = create_app()
 
