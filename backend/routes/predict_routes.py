@@ -53,6 +53,8 @@ def validate_input_payload(data):
         return False, errors
     return True, parsed_params
 
+from backend.routes.auth_routes import get_current_user_from_request
+
 @predict_bp.route('/predict', methods=['POST'])
 def predict_scaling_risk():
     data = request.get_json() or {}
@@ -62,7 +64,34 @@ def predict_scaling_risk():
         return jsonify({'error': 'Validation Failed', 'details': result}), 400
 
     parsed_params = result
-    user_id = data.get('user_id', 1)
+    
+    # Determine authenticated user context
+    current_user = get_current_user_from_request(request)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    if current_user:
+        user_id = current_user.get('user_id', 1)
+        user_name = current_user.get('name', 'Operator')
+        user_email = current_user.get('email', '')
+        user_role = current_user.get('role', 'Operator')
+        facility_name = current_user.get('facility_name', 'Facility Alpha')
+    else:
+        req_user_id = data.get('user_id', 1)
+        cursor.execute("SELECT user_id, name, email, role, facility_name FROM users WHERE user_id = ?", (req_user_id,))
+        db_u = cursor.fetchone()
+        if db_u:
+            user_id = db_u['user_id']
+            user_name = db_u['name']
+            user_email = db_u['email']
+            user_role = db_u['role']
+            facility_name = db_u['facility_name'] or 'Facility Alpha'
+        else:
+            user_id = 1
+            user_name = 'Dr. Alex Vance'
+            user_email = 'alex.vance@hydrofusion.ai'
+            user_role = 'Admin'
+            facility_name = 'Facility Alpha'
 
     # Execute 6-Agent Agentic AI Workflow
     workflow_result = agentic_orchestrator.run_agentic_pipeline(parsed_params, user_id=user_id)
@@ -70,18 +99,21 @@ def predict_scaling_risk():
     blend_res = workflow_result['blending_result']
     ai_resp = workflow_result['ai_response']
 
-    # Save prediction to DB
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
+    # Save prediction to DB with complete user and facility context
     cursor.execute('''
         INSERT INTO predictions (
-            user_id, gpu_temperature, gpu_power_load, ambient_temperature, humidity, water_temperature,
+            user_id, user_name, user_email, user_role, facility_name,
+            gpu_temperature, gpu_power_load, ambient_temperature, humidity, water_temperature,
             tds, ph, conductivity, tower_age, cooling_cycles, flow_rate, daily_water_usage,
             scaling_prediction, risk_probability, freshwater_ratio, greywater_ratio, cost_savings_inr, confidence_score
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+
     ''', (
         user_id,
+        user_name,
+        user_email,
+        user_role,
+        facility_name,
         parsed_params['gpu_temperature'],
         parsed_params['gpu_power_load'],
         parsed_params['ambient_temperature'],
@@ -102,6 +134,7 @@ def predict_scaling_risk():
         pred_res.get('confidence_score', 95.0)
     ))
     prediction_id = cursor.lastrowid
+
 
     # Create Alert record if scaling risk is HIGH or CRITICAL
     if pred_res['scaling_prediction'] in ['HIGH', 'CRITICAL']:

@@ -1,3 +1,4 @@
+import secrets
 from flask import Blueprint, request, jsonify
 from flask_bcrypt import Bcrypt
 import jwt
@@ -5,6 +6,7 @@ import datetime
 import re
 from backend.config import Config
 from backend.database import get_db_connection
+from backend.services.email_service import send_verification_email
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 bcrypt = Bcrypt()
@@ -20,12 +22,31 @@ def generate_token(user):
         'name': user['name'],
         'email': user['email'],
         'role': user['role'],
+        'facility_name': user.get('facility_name', 'Facility Alpha'),
         'exp': datetime.datetime.utcnow() + datetime.timedelta(days=7)
     }
     return jwt.encode(payload, Config.JWT_SECRET, algorithm='HS256')
 
+def get_current_user_from_request(req):
+    auth_header = req.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return None
+    token = auth_header.split(' ')[1]
+    try:
+        payload = jwt.decode(token, Config.JWT_SECRET, algorithms=['HS256'])
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, name, email, role, facility_name, is_verified FROM users WHERE user_id = ?", (payload['user_id'],))
+        user_row = cursor.fetchone()
+        conn.close()
+        if user_row:
+            return dict(user_row)
+        return payload
+    except Exception:
+        return None
+
 # ----------------------------------------------------
-# 1. Registration Endpoint
+# 1. Registration Endpoint with Email Verification
 # ----------------------------------------------------
 @auth_bp.route('/register', methods=['POST'])
 def register():
@@ -35,6 +56,7 @@ def register():
     password = data.get('password', '')
     confirm_password = data.get('confirm_password', password)
     role = data.get('role', 'Operator')
+    facility_name = data.get('facility_name', 'Facility Alpha').strip() or 'Facility Alpha'
     
     if not name or not email or not password:
         return jsonify({'error': 'Name, email, and password are required.'}), 400
@@ -57,28 +79,92 @@ def register():
         return jsonify({'error': 'An account with this email address already exists.'}), 409
         
     password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+    verification_token = secrets.token_urlsafe(32)
     
     cursor.execute('''
-        INSERT INTO users (name, email, password_hash, role)
-        VALUES (?, ?, ?, ?)
-    ''', (name, email, password_hash, role))
+        INSERT INTO users (name, email, password_hash, role, facility_name, is_verified, verification_token)
+        VALUES (?, ?, ?, ?, ?, 0, ?)
+    ''', (name, email, password_hash, role, facility_name, verification_token))
     
     conn.commit()
     user_id = cursor.lastrowid
     
-    cursor.execute("SELECT user_id, name, email, role FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT user_id, name, email, role, facility_name, is_verified FROM users WHERE user_id = ?", (user_id,))
     new_user = dict(cursor.fetchone())
     conn.close()
+
+    # Dispatch verification email to user's registered email address
+    send_verification_email(email, name, verification_token)
     
-    token = generate_token(new_user)
     return jsonify({
-        'message': 'Registration successful. You can now log in.',
-        'token': token,
+        'message': 'Registration successful! A verification email has been sent to your registered email address. Please verify your email before logging in.',
+        'requires_verification': True,
+        'email': email,
         'user': new_user
     }), 201
 
 # ----------------------------------------------------
-# 2. Login Endpoint
+# 2. Email Verification Endpoints
+# ----------------------------------------------------
+@auth_bp.route('/verify-email', methods=['GET', 'POST'])
+def verify_email():
+    token = request.args.get('token', '')
+    if not token and request.is_json:
+        data = request.get_json() or {}
+        token = data.get('token', '')
+
+    if not token:
+        return jsonify({'error': 'Verification token is required.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, name, email FROM users WHERE verification_token = ?", (token,))
+    user = cursor.fetchone()
+
+    if not user:
+        conn.close()
+        return jsonify({'error': 'Invalid or expired verification token.'}), 400
+
+    cursor.execute("UPDATE users SET is_verified = 1, verification_token = NULL WHERE user_id = ?", (user['user_id'],))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        'message': 'Email verified successfully! Your account is now active. You may log in.',
+        'email': user['email']
+    }), 200
+
+@auth_bp.route('/resend-verification', methods=['POST'])
+def resend_verification():
+    data = request.get_json() or {}
+    email = data.get('email', '').strip().lower()
+
+    if not email or not is_valid_email(email):
+        return jsonify({'error': 'Please enter a valid email address.'}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, name, email, is_verified FROM users WHERE email = ?", (email,))
+    user = cursor.fetchone()
+
+    if not user:
+        conn.close()
+        return jsonify({'error': 'Email does not exist. Please check your email address or register a new account.'}), 404
+
+    if user['is_verified'] == 1:
+        conn.close()
+        return jsonify({'message': 'Email address is already verified. You may log in.'}), 200
+
+    verification_token = secrets.token_urlsafe(32)
+    cursor.execute("UPDATE users SET verification_token = ? WHERE user_id = ?", (verification_token, user['user_id']))
+    conn.commit()
+    conn.close()
+
+    send_verification_email(email, user['name'], verification_token)
+    return jsonify({'message': 'A new verification email has been sent to your email address.'}), 200
+
+# ----------------------------------------------------
+# 3. Login Endpoint (Strict Order: Format -> Exists -> Verified -> Password)
 # ----------------------------------------------------
 @auth_bp.route('/login', methods=['POST'])
 def login():
@@ -98,14 +184,25 @@ def login():
     user = cursor.fetchone()
     conn.close()
     
-    if not user or not bcrypt.check_password_hash(user['password_hash'], password):
-        return jsonify({'error': 'Invalid email or password.'}), 401
+    # 1. Check if email exists in database
+    if not user:
+        return jsonify({'error': 'Email does not exist. Please check your email address or register a new account.', 'code': 'EMAIL_NOT_FOUND'}), 404
+        
+    # 2. Check if email is verified
+    if user['is_verified'] == 0:
+        return jsonify({'error': 'Please verify your email address before signing in. Check your inbox for the verification link.', 'code': 'EMAIL_NOT_VERIFIED'}), 403
+
+    # 3. Check password
+    if not bcrypt.check_password_hash(user['password_hash'], password):
+        return jsonify({'error': 'Invalid email or password.', 'code': 'INVALID_PASSWORD'}), 401
         
     user_dict = {
         'user_id': user['user_id'],
         'name': user['name'],
         'email': user['email'],
-        'role': user['role']
+        'role': user['role'],
+        'facility_name': user['facility_name'] or 'Facility Alpha',
+        'is_verified': user['is_verified']
     }
     token = generate_token(user_dict)
     
@@ -116,40 +213,29 @@ def login():
     }), 200
 
 # ----------------------------------------------------
-# 3. Forgot Password Endpoint (Original Behavior)
+# 4. Forgot Password Endpoint (Original Behavior)
 # ----------------------------------------------------
 @auth_bp.route('/forgot-password', methods=['POST'])
 def forgot_password():
+    admin_contact = Config.ADMIN_EMAIL
     return jsonify({
-        'message': 'To reset your password, please contact your facility system administrator (alex.vance@hydrofusion.ai).'
+        'message': f'To reset your password, please contact your facility system administrator ({admin_contact}).'
     }), 200
 
 # ----------------------------------------------------
-# 4. Logout Endpoint
+# 5. Logout Endpoint
 # ----------------------------------------------------
 @auth_bp.route('/logout', methods=['POST'])
 def logout():
     return jsonify({'message': 'Logout successful.'}), 200
 
 # ----------------------------------------------------
-# 5. Get Current User Profile Endpoint
+# 6. Get Current User Profile Endpoint
 # ----------------------------------------------------
 @auth_bp.route('/me', methods=['GET'])
 def get_me():
-    auth_header = request.headers.get('Authorization', '')
-    if not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'Unauthenticated. Token missing.'}), 401
-        
-    token = auth_header.split(' ')[1]
-    try:
-        payload = jwt.decode(token, Config.JWT_SECRET, algorithms=['HS256'])
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_id, name, email, role FROM users WHERE user_id = ?", (payload['user_id'],))
-        user = cursor.fetchone()
-        conn.close()
-        if user:
-            return jsonify({'user': dict(user)})
-        return jsonify({'user': payload})
-    except Exception:
-        return jsonify({'error': 'Invalid or expired token.'}), 401
+    user = get_current_user_from_request(request)
+    if user:
+        return jsonify({'user': user})
+    return jsonify({'error': 'Unauthenticated. Token missing or invalid.'}), 401
+

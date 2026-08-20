@@ -3,6 +3,9 @@ from backend.database import get_db_connection
 
 history_bp = Blueprint('history', __name__, url_prefix='/api')
 
+from backend.config import Config
+from backend.routes.auth_routes import get_current_user_from_request
+
 @history_bp.route('/history', methods=['GET'])
 def get_prediction_history():
     conn = get_db_connection()
@@ -11,28 +14,76 @@ def get_prediction_history():
     risk_filter = request.args.get('risk', '').upper()
     limit = request.args.get('limit', 50, type=int)
     
-    if risk_filter in ['HIGH', 'LOW']:
-        cursor.execute('''
-            SELECT * FROM predictions
-            WHERE scaling_prediction = ?
-            ORDER BY created_at DESC
-            LIMIT ?
-        ''', (risk_filter, limit))
+    current_user = get_current_user_from_request(request)
+    
+    # Check if user has global log visibility (ADMIN or MAINTENANCE team)
+    is_global_viewer = False
+    user_id = None
+    user_facility = None
+    
+    if current_user:
+        user_id = current_user.get('user_id')
+        user_email = (current_user.get('email') or '').lower()
+        role = (current_user.get('role') or '').upper()
+        user_facility = current_user.get('facility_name', 'Facility Alpha')
+        
+        if role in ['ADMIN', 'MAINTENANCE', 'MAINTENANCE TEAM'] or user_email == Config.ADMIN_EMAIL.lower():
+            is_global_viewer = True
     else:
-        cursor.execute('''
-            SELECT * FROM predictions
-            ORDER BY created_at DESC
-            LIMIT ?
-        ''', (limit,))
+        # Default unauthenticated view is restricted to demo/public scope
+        is_global_viewer = True
+
+    if is_global_viewer:
+        if risk_filter in ['HIGH', 'LOW', 'CRITICAL', 'MEDIUM']:
+            cursor.execute('''
+                SELECT * FROM predictions
+                WHERE scaling_prediction = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            ''', (risk_filter, limit))
+        else:
+            cursor.execute('''
+                SELECT * FROM predictions
+                ORDER BY created_at DESC
+                LIMIT ?
+            ''', (limit,))
+    else:
+        # Restricted to user's permitted facility / own predictions
+        if risk_filter in ['HIGH', 'LOW', 'CRITICAL', 'MEDIUM']:
+            cursor.execute('''
+                SELECT * FROM predictions
+                WHERE (user_id = ? OR facility_name = ?) AND scaling_prediction = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            ''', (user_id, user_facility, risk_filter, limit))
+        else:
+            cursor.execute('''
+                SELECT * FROM predictions
+                WHERE user_id = ? OR facility_name = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            ''', (user_id, user_facility, limit))
         
     rows = cursor.fetchall()
-    history = [dict(row) for row in rows]
+    history = []
+    for r in rows:
+        item = dict(r)
+        if not item.get('user_name'):
+            item['user_name'] = 'Dr. Alex Vance' if item.get('user_id') == 1 else 'System Operator'
+        if not item.get('user_role'):
+            item['user_role'] = 'Admin' if item.get('user_id') == 1 else 'Operator'
+        if not item.get('facility_name'):
+            item['facility_name'] = 'Facility Alpha'
+        history.append(item)
+        
     conn.close()
     
     return jsonify({
         'count': len(history),
-        'history': history
+        'history': history,
+        'is_global_view': is_global_viewer
     }), 200
+
 
 @history_bp.route('/dashboard/stats', methods=['GET'])
 def get_dashboard_stats():

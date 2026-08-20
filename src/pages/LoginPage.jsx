@@ -1,4 +1,4 @@
-import React, { useState, useContext } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { 
   Droplets, 
@@ -10,11 +10,12 @@ import {
   ArrowLeft, 
   CheckCircle2, 
   AlertCircle, 
-  RefreshCw 
+  RefreshCw,
+  Building
 } from 'lucide-react';
 
 export const LoginPage = ({ onSuccess }) => {
-  const { login, register } = useContext(AuthContext);
+  const { login, register, verifyEmail, resendVerification } = useContext(AuthContext);
 
   // Auth Modes: 'login' | 'register' | 'forgot'
   const [mode, setMode] = useState('login');
@@ -25,6 +26,7 @@ export const LoginPage = ({ onSuccess }) => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('Operator');
+  const [facilityName, setFacilityName] = useState('Facility Alpha');
 
   // UI States
   const [showPassword, setShowPassword] = useState(false);
@@ -32,10 +34,30 @@ export const LoginPage = ({ onSuccess }) => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState('');
+
+  // Handle URL email verification link
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('verify_token') || params.get('token');
+    if (token) {
+      setLoading(true);
+      verifyEmail(token).then(res => {
+        setLoading(false);
+        if (res.success) {
+          setSuccess(res.message || 'Email verified successfully! You may now sign in.');
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+          setError(res.error || 'Invalid or expired verification token.');
+        }
+      });
+    }
+  }, []);
 
   const clearMessages = () => {
     setError('');
     setSuccess('');
+    setUnverifiedEmail('');
   };
 
   const switchMode = (newMode) => {
@@ -65,6 +87,26 @@ export const LoginPage = ({ onSuccess }) => {
       if (onSuccess) onSuccess();
     } else {
       setError(res.error || 'Invalid email or password.');
+      if (res.error && res.error.toLowerCase().includes('verify your email')) {
+        setUnverifiedEmail(email.trim());
+      }
+    }
+  };
+
+  // ----------------------------------------------------
+  // Handler: Resend Verification Email
+  // ----------------------------------------------------
+  const handleResendVerification = async () => {
+    const targetEmail = unverifiedEmail || email.trim();
+    if (!targetEmail) return;
+    setLoading(true);
+    const res = await resendVerification(targetEmail);
+    setLoading(false);
+    if (res.success) {
+      setSuccess(res.message || `A new verification email has been sent to ${targetEmail}.`);
+      setError('');
+    } else {
+      setError(res.error || 'Failed to resend verification email.');
     }
   };
 
@@ -91,11 +133,11 @@ export const LoginPage = ({ onSuccess }) => {
     }
 
     setLoading(true);
-    const res = await register(name.trim(), email.trim(), password, confirmPassword, role);
+    const res = await register(name.trim(), email.trim(), password, confirmPassword, role, facilityName);
     setLoading(false);
 
     if (res.success) {
-      setSuccess('Account created successfully! Please sign in with your credentials.');
+      setSuccess(res.message || 'Account created! Please verify your email before logging in.');
       switchMode('login');
       setPassword('');
       setConfirmPassword('');
@@ -109,7 +151,10 @@ export const LoginPage = ({ onSuccess }) => {
   // ----------------------------------------------------
   const handleDemoLogin = (demoRole) => {
     clearMessages();
-    if (demoRole === 'Engineer') {
+    if (demoRole === 'AdminEmail') {
+      setEmail('kamalaksha07k@gmail.com');
+      setPassword('admin123');
+    } else if (demoRole === 'Engineer') {
       setEmail('engineer@hydrofusion.ai');
       setPassword('admin123');
     } else {
@@ -117,6 +162,7 @@ export const LoginPage = ({ onSuccess }) => {
       setPassword('admin123');
     }
   };
+
 
   return (
     <div style={{
@@ -165,13 +211,35 @@ export const LoginPage = ({ onSuccess }) => {
             fontSize: '0.85rem',
             marginBottom: '1.25rem',
             display: 'flex',
-            alignItems: 'center',
-            gap: '0.6rem'
+            flexDirection: 'column',
+            gap: '0.5rem'
           }}>
-            <AlertCircle size={18} style={{ flexShrink: 0 }} />
-            <span>{error}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <AlertCircle size={18} style={{ flexShrink: 0 }} />
+              <span>{error}</span>
+            </div>
+            {unverifiedEmail && (
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                style={{
+                  alignSelf: 'flex-start',
+                  background: 'rgba(0, 242, 254, 0.2)',
+                  border: '1px solid #00f2fe',
+                  color: '#00f2fe',
+                  padding: '0.3rem 0.6rem',
+                  borderRadius: '6px',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Resend Verification Email
+              </button>
+            )}
           </div>
         )}
+
 
         {success && (
           <div style={{

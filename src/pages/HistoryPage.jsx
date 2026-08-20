@@ -52,7 +52,10 @@ export const HistoryPage = () => {
   const filteredHistory = history.filter(item => {
     const term = search.toLowerCase();
     return (
-      item.scaling_prediction.toLowerCase().includes(term) ||
+      (item.scaling_prediction && item.scaling_prediction.toLowerCase().includes(term)) ||
+      (item.user_name && item.user_name.toLowerCase().includes(term)) ||
+      (item.user_role && item.user_role.toLowerCase().includes(term)) ||
+      (item.facility_name && item.facility_name.toLowerCase().includes(term)) ||
       String(item.tds).includes(term) ||
       String(item.gpu_temperature).includes(term) ||
       String(item.created_at).includes(term)
@@ -60,9 +63,9 @@ export const HistoryPage = () => {
   });
 
   const exportCSV = () => {
-    const headers = ['ID,Date,GPU_Temp,GPU_Power,TDS,pH,Conductivity,Cycles,Prediction,Risk_Prob_Pct,Freshwater_Pct,Greywater_Pct\n'];
+    const headers = ['ID,Date,User_Name,User_Role,Facility,GPU_Temp,GPU_Power,TDS,pH,Conductivity,Cycles,Prediction,Risk_Prob_Pct,Freshwater_Pct,Greywater_Pct\n'];
     const rows = filteredHistory.map(h => 
-      `${h.prediction_id},"${h.created_at}",${h.gpu_temperature},${h.gpu_power_load},${h.tds},${h.ph},${h.conductivity},${h.cooling_cycles},${h.scaling_prediction},${h.risk_probability},${h.freshwater_ratio},${h.greywater_ratio}`
+      `${h.prediction_id},"${h.created_at}","${h.user_name || ''}","${h.user_role || ''}","${h.facility_name || ''}",${h.gpu_temperature},${h.gpu_power_load},${h.tds},${h.ph},${h.conductivity},${h.cooling_cycles},${h.scaling_prediction},${h.risk_probability},${h.freshwater_ratio},${h.greywater_ratio}`
     );
     const blob = new Blob([headers.concat(rows).join('\n')], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
@@ -81,7 +84,7 @@ export const HistoryPage = () => {
             <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
             <input
               type="text"
-              placeholder="Search by date, risk level, or TDS..."
+              placeholder="Search by user, facility, role, date, or TDS..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="input-field"
@@ -116,10 +119,11 @@ export const HistoryPage = () => {
             <tr style={{ borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: '0.75rem' }}>
               <th style={{ padding: '0.85rem' }}>ID</th>
               <th style={{ padding: '0.85rem' }}>Timestamp</th>
+              <th style={{ padding: '0.85rem' }}>User / Role</th>
+              <th style={{ padding: '0.85rem' }}>Facility</th>
               <th style={{ padding: '0.85rem' }}>GPU Temp</th>
               <th style={{ padding: '0.85rem' }}>TDS (ppm)</th>
               <th style={{ padding: '0.85rem' }}>pH</th>
-              <th style={{ padding: '0.85rem' }}>Cycles</th>
               <th style={{ padding: '0.85rem' }}>Risk Level</th>
               <th style={{ padding: '0.85rem' }}>Risk %</th>
               <th style={{ padding: '0.85rem' }}>Blending Ratio</th>
@@ -128,15 +132,19 @@ export const HistoryPage = () => {
           </thead>
           <tbody>
             {filteredHistory.map((row) => {
-              const isHigh = row.scaling_prediction === 'HIGH';
+              const isHigh = row.scaling_prediction === 'HIGH' || row.scaling_prediction === 'CRITICAL';
               return (
                 <tr key={row.prediction_id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)', transition: 'background 0.2s' }}>
                   <td style={{ padding: '0.85rem', fontWeight: 700, color: '#f8fafc' }}>#{row.prediction_id}</td>
                   <td style={{ padding: '0.85rem', color: 'var(--text-muted)' }}>{row.created_at}</td>
+                  <td style={{ padding: '0.85rem' }}>
+                    <div style={{ fontWeight: 600, color: '#f8fafc' }}>{row.user_name || 'Dr. Alex Vance'}</div>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{row.user_role || 'Operator'}</span>
+                  </td>
+                  <td style={{ padding: '0.85rem', color: '#00f2fe', fontWeight: 600 }}>{row.facility_name || 'Facility Alpha'}</td>
                   <td style={{ padding: '0.85rem', color: '#f8fafc' }}>{row.gpu_temperature}°C</td>
                   <td style={{ padding: '0.85rem', color: '#f8fafc' }}>{row.tds}</td>
                   <td style={{ padding: '0.85rem', color: '#f8fafc' }}>{row.ph}</td>
-                  <td style={{ padding: '0.85rem', color: '#f8fafc' }}>{row.cooling_cycles}</td>
                   <td style={{ padding: '0.85rem' }}>
                     <span className={isHigh ? 'badge badge-high-risk' : 'badge badge-low-risk'}>
                       {row.scaling_prediction}
@@ -193,13 +201,17 @@ export const HistoryPage = () => {
             </h3>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              <div>Operator Name: <strong style={{ color: '#f8fafc' }}>{selectedDetail.user_name || 'Dr. Alex Vance'}</strong></div>
+              <div>User Role: <strong style={{ color: '#f8fafc' }}>{selectedDetail.user_role || 'Admin'}</strong></div>
+              <div>User Email: <strong style={{ color: '#00f2fe' }}>{selectedDetail.user_email || 'alex.vance@hydrofusion.ai'}</strong></div>
+              <div>Facility Context: <strong style={{ color: '#00f2fe' }}>{selectedDetail.facility_name || 'Facility Alpha'}</strong></div>
               <div>GPU Temp: <strong style={{ color: '#f8fafc' }}>{selectedDetail.gpu_temperature}°C</strong></div>
               <div>GPU Power: <strong style={{ color: '#f8fafc' }}>{selectedDetail.gpu_power_load}%</strong></div>
               <div>TDS: <strong style={{ color: '#f8fafc' }}>{selectedDetail.tds} ppm</strong></div>
               <div>pH: <strong style={{ color: '#f8fafc' }}>{selectedDetail.ph}</strong></div>
               <div>Conductivity: <strong style={{ color: '#f8fafc' }}>{selectedDetail.conductivity} µS/cm</strong></div>
               <div>Cooling Cycles: <strong style={{ color: '#f8fafc' }}>{selectedDetail.cooling_cycles}</strong></div>
-              <div>Scaling Risk: <strong style={{ color: selectedDetail.scaling_prediction === 'HIGH' ? '#f43f5e' : '#10b981' }}>{selectedDetail.scaling_prediction} ({selectedDetail.risk_probability}%)</strong></div>
+              <div>Scaling Risk: <strong style={{ color: selectedDetail.scaling_prediction === 'HIGH' || selectedDetail.scaling_prediction === 'CRITICAL' ? '#f43f5e' : '#10b981' }}>{selectedDetail.scaling_prediction} ({selectedDetail.risk_probability}%)</strong></div>
               <div>Blending: <strong style={{ color: '#00f2fe' }}>{selectedDetail.freshwater_ratio}% Fresh / {selectedDetail.greywater_ratio}% Grey</strong></div>
             </div>
 
@@ -209,6 +221,7 @@ export const HistoryPage = () => {
           </div>
         </div>
       )}
+
     </div>
   );
 };

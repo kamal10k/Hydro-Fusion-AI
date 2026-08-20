@@ -47,10 +47,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, password, confirmPassword, role = 'Operator') => {
+  const register = async (name, email, password, confirmPassword, role = 'Operator', facilityName = 'Facility Alpha') => {
     setLoading(true);
     try {
-      const res = await api.register(name, email, password, confirmPassword, role);
+      const res = await api.register(name, email, password, confirmPassword, role, facilityName);
+      setLoading(false);
+      return { success: true, message: res.message, requires_verification: res.requires_verification };
+    } catch (err) {
+      setLoading(false);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const verifyEmail = async (verifyToken) => {
+    setLoading(true);
+    try {
+      const res = await api.verifyEmail(verifyToken);
       setLoading(false);
       return { success: true, message: res.message };
     } catch (err) {
@@ -58,6 +70,19 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: err.message };
     }
   };
+
+  const resendVerification = async (targetEmail) => {
+    setLoading(true);
+    try {
+      const res = await api.resendVerification(targetEmail);
+      setLoading(false);
+      return { success: true, message: res.message };
+    } catch (err) {
+      setLoading(false);
+      return { success: false, error: err.message };
+    }
+  };
+
 
   const forgotPassword = async (email) => {
     setLoading(true);
@@ -86,7 +111,10 @@ export const AuthProvider = ({ children }) => {
       initializing,
       login,
       register,
+      verifyEmail,
+      resendVerification,
       forgotPassword,
+
       logout,
       setUser
     }}>

@@ -25,11 +25,14 @@ async function request(endpoint, options = {}) {
 export const api = {
   // Auth System Endpoints
   login: (email, password) => request('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  register: (name, email, password, confirmPassword, role = 'Operator') => 
-    request('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password, confirm_password: confirmPassword, role }) }),
+  register: (name, email, password, confirmPassword, role = 'Operator', facilityName = 'Facility Alpha') => 
+    request('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password, confirm_password: confirmPassword, role, facility_name: facilityName }) }),
+  verifyEmail: (token) => request(`/auth/verify-email?token=${token}`),
+  resendVerification: (email) => request('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) }),
   forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
   getMe: () => request('/auth/me'),
+
 
   // Prediction & What-If
   predict: (params) => request('/predict', { method: 'POST', body: JSON.stringify(params) }),

@@ -19,9 +19,22 @@ def init_db():
             email TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             role TEXT DEFAULT 'Operator',
+            facility_name TEXT DEFAULT 'Facility Alpha',
+            is_verified INTEGER DEFAULT 0,
+            verification_token TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Ensure schema migrations on existing users table
+    cursor.execute("PRAGMA table_info(users)")
+    user_cols = [col['name'] for col in cursor.fetchall()]
+    if 'facility_name' not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN facility_name TEXT DEFAULT 'Facility Alpha'")
+    if 'is_verified' not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
+    if 'verification_token' not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN verification_token TEXT")
 
     # Drop password_resets table if exists from recent OTP changes
     cursor.execute("DROP TABLE IF EXISTS password_resets")
@@ -31,6 +44,10 @@ def init_db():
         CREATE TABLE IF NOT EXISTS predictions (
             prediction_id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
+            user_name TEXT,
+            user_email TEXT,
+            user_role TEXT,
+            facility_name TEXT DEFAULT 'Facility Alpha',
             gpu_temperature REAL NOT NULL,
             gpu_power_load REAL NOT NULL,
             ambient_temperature REAL NOT NULL,
@@ -61,6 +78,15 @@ def init_db():
         cursor.execute("ALTER TABLE predictions ADD COLUMN cost_savings_inr REAL DEFAULT 0.0")
     if 'confidence_score' not in columns:
         cursor.execute("ALTER TABLE predictions ADD COLUMN confidence_score REAL DEFAULT 95.0")
+    if 'user_name' not in columns:
+        cursor.execute("ALTER TABLE predictions ADD COLUMN user_name TEXT")
+    if 'user_email' not in columns:
+        cursor.execute("ALTER TABLE predictions ADD COLUMN user_email TEXT")
+    if 'user_role' not in columns:
+        cursor.execute("ALTER TABLE predictions ADD COLUMN user_role TEXT")
+    if 'facility_name' not in columns:
+        cursor.execute("ALTER TABLE predictions ADD COLUMN facility_name TEXT DEFAULT 'Facility Alpha'")
+
 
     # SYSTEM_THRESHOLDS table for configurable alert limits
     cursor.execute('''
@@ -139,6 +165,22 @@ def init_db():
 def seed_sample_data():
     conn = get_db_connection()
     cursor = conn.cursor()
+
+    # Ensure configured ADMIN_EMAIL exists as verified Admin user
+    admin_email = Config.ADMIN_EMAIL.lower()
+    cursor.execute("SELECT user_id FROM users WHERE email = ?", (admin_email,))
+    admin_user = cursor.fetchone()
+    if not admin_user:
+        # Default password for admin seed account: admin123
+        admin_pass_hash = '$2b$12$scw0C39GZO1hO/jpStMNUOLIY2ZbbOiUxMHRunVJHuwfn5hcz9iSG'
+        cursor.execute('''
+            INSERT INTO users (name, email, password_hash, role, facility_name, is_verified)
+            VALUES (?, ?, ?, ?, ?, 1)
+        ''', ('Kamalaksha Admin', admin_email, admin_pass_hash, Config.ADMIN_ROLE, 'Global Operations Center'))
+
+
+    # Mark existing demo users as verified so demo logins work
+    cursor.execute("UPDATE users SET is_verified = 1 WHERE is_verified IS NULL OR is_verified = 0")
     
     cursor.execute("SELECT COUNT(*) as count FROM predictions")
     count = cursor.fetchone()['count']
@@ -146,24 +188,25 @@ def seed_sample_data():
     if count == 0:
         now = datetime.datetime.now()
         cursor.execute('''
-            INSERT OR IGNORE INTO users (user_id, name, email, password_hash, role)
-            VALUES (1, 'Dr. Alex Vance', 'alex.vance@hydrofusion.ai', '$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQOEg6Lruj3vjPGga31lW', 'Admin')
+            INSERT OR IGNORE INTO users (user_id, name, email, password_hash, role, facility_name, is_verified)
+            VALUES (1, 'Dr. Alex Vance', 'alex.vance@hydrofusion.ai', '$2b$12$scw0C39GZO1hO/jpStMNUOLIY2ZbbOiUxMHRunVJHuwfn5hcz9iSG', 'Admin', 'Facility Alpha', 1)
         ''')
         
         sample_predictions = [
-            (1, 85.0, 92.0, 37.0, 70.0, 31.0, 750.0, 8.1, 950.0, 5.0, 15.0, 100.0, 5200.0, 'HIGH', 87.5, 80.0, 20.0, 124.8, 96.5, (now - datetime.timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')),
-            (1, 72.0, 65.0, 28.0, 55.0, 24.0, 420.0, 7.2, 580.0, 2.0, 6.0, 120.0, 4100.0, 'LOW', 18.2, 40.0, 60.0, 295.2, 94.0, (now - datetime.timedelta(hours=6)).strftime('%Y-%m-%d %H:%M:%S')),
-            (1, 89.0, 96.0, 39.0, 75.0, 34.0, 880.0, 8.4, 1150.0, 7.0, 18.0, 95.0, 5800.0, 'CRITICAL', 94.1, 90.0, 10.0, 69.6, 98.2, (now - datetime.timedelta(hours=14)).strftime('%Y-%m-%d %H:%M:%S')),
-            (1, 68.0, 50.0, 22.0, 45.0, 21.0, 350.0, 7.0, 480.0, 1.0, 4.0, 130.0, 3800.0, 'LOW', 11.4, 30.0, 70.0, 319.2, 93.5, (now - datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')),
-            (1, 81.0, 85.0, 33.0, 62.0, 29.0, 610.0, 7.8, 810.0, 4.0, 11.0, 105.0, 4700.0, 'MEDIUM', 52.8, 60.0, 40.0, 225.6, 91.0, (now - datetime.timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S'))
+            (1, 'Dr. Alex Vance', 'alex.vance@hydrofusion.ai', 'Admin', 'Facility Alpha', 85.0, 92.0, 37.0, 70.0, 31.0, 750.0, 8.1, 950.0, 5.0, 15.0, 100.0, 5200.0, 'HIGH', 87.5, 80.0, 20.0, 124.8, 96.5, (now - datetime.timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')),
+            (1, 'Dr. Alex Vance', 'alex.vance@hydrofusion.ai', 'Admin', 'Facility Alpha', 72.0, 65.0, 28.0, 55.0, 24.0, 420.0, 7.2, 580.0, 2.0, 6.0, 120.0, 4100.0, 'LOW', 18.2, 40.0, 60.0, 295.2, 94.0, (now - datetime.timedelta(hours=6)).strftime('%Y-%m-%d %H:%M:%S')),
+            (1, 'Dr. Alex Vance', 'alex.vance@hydrofusion.ai', 'Admin', 'Facility Alpha', 89.0, 96.0, 39.0, 75.0, 34.0, 880.0, 8.4, 1150.0, 7.0, 18.0, 95.0, 5800.0, 'CRITICAL', 94.1, 90.0, 10.0, 69.6, 98.2, (now - datetime.timedelta(hours=14)).strftime('%Y-%m-%d %H:%M:%S')),
+            (1, 'Dr. Alex Vance', 'alex.vance@hydrofusion.ai', 'Admin', 'Facility Alpha', 68.0, 50.0, 22.0, 45.0, 21.0, 350.0, 7.0, 480.0, 1.0, 4.0, 130.0, 3800.0, 'LOW', 11.4, 30.0, 70.0, 319.2, 93.5, (now - datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S')),
+            (1, 'Dr. Alex Vance', 'alex.vance@hydrofusion.ai', 'Admin', 'Facility Alpha', 81.0, 85.0, 33.0, 62.0, 29.0, 610.0, 7.8, 810.0, 4.0, 11.0, 105.0, 4700.0, 'MEDIUM', 52.8, 60.0, 40.0, 225.6, 91.0, (now - datetime.timedelta(days=2)).strftime('%Y-%m-%d %H:%M:%S'))
         ]
         
         cursor.executemany('''
             INSERT INTO predictions (
-                user_id, gpu_temperature, gpu_power_load, ambient_temperature, humidity, water_temperature,
+                user_id, user_name, user_email, user_role, facility_name,
+                gpu_temperature, gpu_power_load, ambient_temperature, humidity, water_temperature,
                 tds, ph, conductivity, tower_age, cooling_cycles, flow_rate, daily_water_usage,
                 scaling_prediction, risk_probability, freshwater_ratio, greywater_ratio, cost_savings_inr, confidence_score, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', sample_predictions)
         
         sample_alerts = [
@@ -183,5 +226,16 @@ def seed_sample_data():
             VALUES (?, ?, ?, ?)
         ''', sample_chats)
 
-        conn.commit()
+    # Backfill predictions metadata for historical compatibility
+    cursor.execute('''
+        UPDATE predictions 
+        SET user_name = (SELECT name FROM users WHERE users.user_id = predictions.user_id),
+            user_email = (SELECT email FROM users WHERE users.user_id = predictions.user_id),
+            user_role = (SELECT role FROM users WHERE users.user_id = predictions.user_id),
+            facility_name = COALESCE((SELECT facility_name FROM users WHERE users.user_id = predictions.user_id), 'Facility Alpha')
+        WHERE user_name IS NULL OR user_email IS NULL
+    ''')
+
+    conn.commit()
     conn.close()
+

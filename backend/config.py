@@ -22,3 +22,14 @@ class Config:
     
     # Model storage path
     MODEL_PATH = os.path.join(BASE_DIR, "models", "scaling_model.pkl")
+
+    # Project Administrator & Email System Configuration
+    ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "kamalaksha07k@gmail.com")
+    ADMIN_ROLE = "Admin"
+    EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+    EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
+    EMAIL_USERNAME = os.environ.get("EMAIL_USERNAME", "")
+    EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD", "")
+    EMAIL_FROM = os.environ.get("EMAIL_FROM", "noreply@hydrofusion.ai")
+    FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+
