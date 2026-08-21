@@ -1,9 +1,9 @@
 # Stage 1: Build Frontend Assets
 FROM node:20-alpine AS frontend-builder
-WORKDIR /app
-COPY package.json package-lock.json ./
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
-COPY . .
+COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Production Python Backend & App Host
@@ -22,7 +22,8 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 
 # Copy application files
 COPY backend/ backend/
-COPY --from=frontend-builder /app/dist /app/src/dist
+COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
+
 
 EXPOSE 5000
 

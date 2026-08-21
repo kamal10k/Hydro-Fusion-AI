@@ -24,7 +24,10 @@ from backend.routes.forecast_routes import forecast_bp
 from backend.routes.analytics_routes import analytics_bp
 
 
-dist_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'dist'))
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist'))
+root_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'dist'))
+dist_folder = frontend_dist if os.path.exists(frontend_dist) else root_dist
+
 
 
 def create_app():

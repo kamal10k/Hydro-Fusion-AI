@@ -94,6 +94,9 @@ python -m backend.app
 ### 2. Frontend Setup
 
 ```bash
+# Navigate to frontend directory
+cd frontend
+
 # Install node dependencies
 npm install
 
@@ -103,6 +106,7 @@ npm run dev
 # Or build production static bundle
 npm run build
 ```
+
 
 ### 3. Docker Container Deployment
 
