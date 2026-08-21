@@ -13,9 +13,9 @@ export const Navbar = ({ activeTab, systemStatus = 'Normal Operation', activeAle
       chat: 'Digital Chemist AI Assistant (Gemini API)',
       history: 'Historical Telemetry & Prediction Audit Logs',
       alerts: 'Scaling Risk Alerts & Preventive Maintenance',
-      reports: 'Executive Water Management Report Generator',
-      'agentic-ai': 'Agentic AI Orchestrator & n8n Multi-Agent Trace'
+      reports: 'Executive Water Management Report Generator'
     };
+
     return titles[tab] || 'HydroFusion AI';
   };
 

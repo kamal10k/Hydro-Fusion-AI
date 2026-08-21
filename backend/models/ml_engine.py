@@ -121,6 +121,7 @@ class ScalingPredictionEngine:
 
         contributions = []
         for key, item in raw_scores.items():
+            # pyrefly: ignore [unsupported-operation]
             pct = round((item['score'] / total_raw) * 100.0, 1)
             impact = 'HIGH_POSITIVE' if pct > 20 else 'MODERATE_POSITIVE' if pct > 10 else 'NOMINAL'
             contributions.append({

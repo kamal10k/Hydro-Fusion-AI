@@ -15,9 +15,9 @@ import {
 } from 'lucide-react';
 
 export const LoginPage = ({ onSuccess }) => {
-  const { login, register } = useContext(AuthContext);
+  const { login, register, verifyOtp, resendOtp, verifyRegistrationEmail, resendRegistrationEmail, forgotPassword, resetPassword } = useContext(AuthContext);
 
-  // Auth Modes: 'login' | 'register' | 'forgot'
+  // Auth Modes: 'login' | 'register' | 'forgot' | 'otp' | 'verify_registration' | 'reset_password'
   const [mode, setMode] = useState('login');
 
   // Form Fields
@@ -28,12 +28,48 @@ export const LoginPage = ({ onSuccess }) => {
   const [role, setRole] = useState('Operator');
   const [facilityName, setFacilityName] = useState('Facility Alpha');
 
+  // Login OTP Verification Fields
+  const [otp, setOtp] = useState('');
+  const [loginAttemptId, setLoginAttemptId] = useState('');
+  const [emailMasked, setEmailMasked] = useState('');
+  const [cooldown, setCooldown] = useState(0);
+
+  // Registration Email Verification Fields
+  const [registrationToken, setRegistrationToken] = useState('');
+  const [regCode, setRegCode] = useState('');
+
+  // Password Reset Fields
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+
   // UI States
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Check if password reset token is present in URL
+    const params = new URLSearchParams(window.location.search);
+    const tokenParam = params.get('reset_token') || params.get('token');
+    if (tokenParam) {
+      setResetToken(tokenParam);
+      setMode('reset_password');
+    }
+  }, []);
+
+  useEffect(() => {
+    let timer;
+    if (cooldown > 0) {
+      timer = setInterval(() => {
+        setCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
 
   const clearMessages = () => {
     setError('');
@@ -45,10 +81,13 @@ export const LoginPage = ({ onSuccess }) => {
     setMode(newMode);
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setOtp('');
+    setRegCode('');
   };
 
+
   // ----------------------------------------------------
-  // Handler: Login
+  // Handler: Login (Triggers OTP Email)
   // ----------------------------------------------------
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -64,14 +103,67 @@ export const LoginPage = ({ onSuccess }) => {
     setLoading(false);
 
     if (res.success) {
-      if (onSuccess) onSuccess();
+      if (res.requiresOtp) {
+        setLoginAttemptId(res.loginAttemptId);
+        setEmailMasked(res.emailMasked);
+        setMode('otp');
+        setSuccess(`Verification code sent to ${res.emailMasked}.`);
+        setCooldown(60);
+      } else if (onSuccess) {
+        onSuccess();
+      }
     } else {
       setError(res.error || 'Invalid email or password.');
     }
   };
 
   // ----------------------------------------------------
-  // Handler: Registration
+  // Handler: Verify OTP Code
+  // ----------------------------------------------------
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    clearMessages();
+
+    if (!otp.trim() || otp.trim().length !== 6) {
+      setError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setLoading(true);
+    const res = await verifyOtp(loginAttemptId, otp.trim());
+    setLoading(false);
+
+    if (res.success) {
+      if (onSuccess) onSuccess();
+    } else {
+      setError(res.error || 'Invalid verification code.');
+    }
+  };
+
+  // ----------------------------------------------------
+  // Handler: Resend OTP Code
+  // ----------------------------------------------------
+  const handleResendOtp = async () => {
+    if (cooldown > 0) return;
+    clearMessages();
+    setLoading(true);
+    const res = await resendOtp(loginAttemptId);
+    setLoading(false);
+
+    if (res.success) {
+      if (res.loginAttemptId) setLoginAttemptId(res.loginAttemptId);
+      if (res.emailMasked) setEmailMasked(res.emailMasked);
+      setSuccess(res.message || `A new code has been sent to ${emailMasked}.`);
+      setCooldown(60);
+      setOtp('');
+    } else {
+      setError(res.error || 'Failed to resend code.');
+    }
+  };
+
+
+  // ----------------------------------------------------
+  // Handler: Registration (Triggers Registration Email Verification)
   // ----------------------------------------------------
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -97,32 +189,137 @@ export const LoginPage = ({ onSuccess }) => {
     setLoading(false);
 
     if (res.success) {
-      setSuccess('Account created successfully! Please sign in with your credentials.');
-      switchMode('login');
-      setPassword('');
-      setConfirmPassword('');
+      if (res.requiresVerification) {
+        setRegistrationToken(res.registrationToken);
+        setEmailMasked(res.emailMasked);
+        setMode('verify_registration');
+        setSuccess(`Account created! A verification code was sent to ${res.emailMasked}.`);
+        setCooldown(60);
+      } else {
+        setSuccess('Account created successfully! Please sign in with your credentials.');
+        switchMode('login');
+        setPassword('');
+        setConfirmPassword('');
+      }
     } else {
       setError(res.error || 'Registration failed. Please check your details.');
     }
   };
 
-
   // ----------------------------------------------------
-  // Quick Demo Logins
+  // Handler: Verify Registration Email Code
   // ----------------------------------------------------
-  const handleDemoLogin = (demoRole) => {
+  const handleVerifyRegistrationEmail = async (e) => {
+    e.preventDefault();
     clearMessages();
-    if (demoRole === 'AdminEmail') {
-      setEmail('kamalaksha07k@gmail.com');
-      setPassword('admin123');
-    } else if (demoRole === 'Engineer') {
-      setEmail('engineer@hydrofusion.ai');
-      setPassword('admin123');
+
+    if (!regCode.trim() || regCode.trim().length !== 6) {
+      setError('Please enter the 6-digit verification code.');
+      return;
+    }
+
+    setLoading(true);
+    const res = await verifyRegistrationEmail(registrationToken, regCode.trim(), email);
+    setLoading(false);
+
+    if (res.success) {
+      setSuccess('Email address verified successfully! You may now sign in.');
+      setMode('login');
+      setRegCode('');
+      setPassword('');
+      setConfirmPassword('');
     } else {
-      setEmail('alex.vance@hydrofusion.ai');
-      setPassword('admin123');
+      setError(res.error || 'Invalid verification code.');
     }
   };
+
+  // ----------------------------------------------------
+  // Handler: Resend Registration Verification Code
+  // ----------------------------------------------------
+  const handleResendRegistrationCode = async () => {
+    if (cooldown > 0) return;
+    clearMessages();
+    setLoading(true);
+    const res = await resendRegistrationEmail(registrationToken, email);
+    setLoading(false);
+
+    if (res.success) {
+      if (res.registrationToken) setRegistrationToken(res.registrationToken);
+      if (res.emailMasked) setEmailMasked(res.emailMasked);
+      setSuccess(res.message || `A new verification code was sent to ${emailMasked || email}.`);
+      setCooldown(60);
+      setRegCode('');
+    } else {
+      setError(res.error || 'Failed to resend verification code.');
+    }
+  };
+
+
+
+  // ----------------------------------------------------
+  // Handler: Forgot Password (Send Reset Email)
+  // ----------------------------------------------------
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    clearMessages();
+
+    if (!email.trim()) {
+      setError('Please enter your registered email address.');
+      return;
+    }
+
+    setLoading(true);
+    const res = await forgotPassword(email.trim());
+    setLoading(false);
+
+    if (res.success) {
+      setSuccess(res.message || 'If an account with this email exists, a password reset link has been sent.');
+    } else {
+      setError(res.error || 'Failed to process password reset request.');
+    }
+  };
+
+  // ----------------------------------------------------
+  // Handler: Reset Password (Save New Password)
+  // ----------------------------------------------------
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    clearMessages();
+
+    if (!newPassword || !confirmNewPassword) {
+      setError('Please enter and confirm your new password.');
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+    const res = await resetPassword(resetToken, newPassword, confirmNewPassword);
+    setLoading(false);
+
+    if (res.success) {
+      setSuccess('Your password has been reset successfully. Please log in with your new password.');
+      setMode('login');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setPassword('');
+      setConfirmPassword('');
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    } else {
+      setError(res.error || 'Password reset failed. Please request a new link.');
+    }
+  };
+
 
 
   return (
@@ -156,8 +353,11 @@ export const LoginPage = ({ onSuccess }) => {
           </h1>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
             {mode === 'login' && 'Data Center Cooling & Water Management System'}
+            {mode === 'otp' && 'Two-Factor Email Security Verification'}
+            {mode === 'verify_registration' && 'New Account Email Verification'}
             {mode === 'register' && 'Create Operator / Engineer Account'}
-            {mode === 'forgot' && 'Account Recovery & Administrator Support'}
+            {mode === 'forgot' && 'Reset Your HydroFusion AI Account Password'}
+            {mode === 'reset_password' && 'Create New Secure Account Password'}
           </p>
         </div>
 
@@ -179,8 +379,6 @@ export const LoginPage = ({ onSuccess }) => {
             <span>{error}</span>
           </div>
         )}
-
-
 
         {success && (
           <div style={{
@@ -322,7 +520,162 @@ export const LoginPage = ({ onSuccess }) => {
         )}
 
         {/* ---------------------------------------------------------------- */}
-        {/* VIEW 2: REGISTRATION                                             */}
+        {/* VIEW 2: LOGIN OTP VERIFICATION                                   */}
+        {/* ---------------------------------------------------------------- */}
+        {mode === 'otp' && (
+          <form onSubmit={handleVerifyOtp} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '0.25rem' }}>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.35rem' }}>
+                Verify Your Email
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                We sent a 6-digit verification code to:<br />
+                <strong style={{ color: '#00f2fe' }}>{emailMasked || email}</strong>
+              </p>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                6-Digit Verification Code
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  required
+                  maxLength={6}
+                  placeholder="123456"
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem', letterSpacing: '0.35em', fontSize: '1.1rem', fontWeight: 700, textAlign: 'center' }}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={loading || otp.length !== 6}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              {loading ? (
+                <>
+                  <RefreshCw size={16} className="pulse-active" /> Verifying Code...
+                </>
+              ) : (
+                'Verify Code'
+              )}
+            </button>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+              >
+                <ArrowLeft size={14} /> Back to Sign In
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={loading || cooldown > 0}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: cooldown > 0 ? 'var(--text-dim)' : '#00f2fe',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: cooldown > 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* ---------------------------------------------------------------- */}
+        {/* VIEW 2.5: REGISTRATION EMAIL VERIFICATION                        */}
+        {/* ---------------------------------------------------------------- */}
+        {mode === 'verify_registration' && (
+          <form onSubmit={handleVerifyRegistrationEmail} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '0.25rem' }}>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.35rem' }}>
+                Verify Your Email Address
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                We sent a 6-digit verification code to:<br />
+                <strong style={{ color: '#00f2fe' }}>{emailMasked || email}</strong>
+              </p>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                6-Digit Verification Code
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="text"
+                  value={regCode}
+                  onChange={(e) => setRegCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  required
+                  maxLength={6}
+                  placeholder="123456"
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem', letterSpacing: '0.35em', fontSize: '1.1rem', fontWeight: 700, textAlign: 'center' }}
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={loading || regCode.length !== 6}
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              {loading ? (
+                <>
+                  <RefreshCw size={16} className="pulse-active" /> Verifying Email...
+                </>
+              ) : (
+                'Verify Email'
+              )}
+            </button>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+              >
+                <ArrowLeft size={14} /> Back to Sign In
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResendRegistrationCode}
+                disabled={loading || cooldown > 0}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: cooldown > 0 ? 'var(--text-dim)' : '#00f2fe',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: cooldown > 0 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend Code'}
+              </button>
+            </div>
+          </form>
+        )}
+
+
+        {/* ---------------------------------------------------------------- */}
+        {/* VIEW 3: REGISTRATION                                             */}
         {/* ---------------------------------------------------------------- */}
         {mode === 'register' && (
           <form onSubmit={handleRegister} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -448,42 +801,158 @@ export const LoginPage = ({ onSuccess }) => {
         )}
 
         {/* ---------------------------------------------------------------- */}
-        {/* VIEW 3: FORGOT PASSWORD (ORIGINAL BEHAVIOR)                      */}
+        {/* VIEW 4: FORGOT PASSWORD                                          */}
         {/* ---------------------------------------------------------------- */}
         {mode === 'forgot' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{
-              background: 'rgba(0, 242, 254, 0.08)',
-              border: '1px solid rgba(0, 242, 254, 0.25)',
-              borderRadius: '12px',
-              padding: '1.25rem',
-              lineHeight: 1.6,
-              fontSize: '0.85rem',
-              color: '#cbd5e1'
-            }}>
-              <p style={{ marginBottom: '0.75rem', fontWeight: 600, color: '#f8fafc' }}>
-                Account Security & Password Recovery
-              </p>
-              <p style={{ marginBottom: '0.5rem' }}>
-                For data center operational safety and access control compliance, direct automated password resets are managed through facility administrators.
-              </p>
-              <p>
-                Please contact your lead administrator at: <strong style={{ color: '#00f2fe' }}>alex.vance@hydrofusion.ai</strong> or reach out to internal IT support to reset your credentials.
+          <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '0.25rem' }}>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.35rem' }}>
+                Forgot Password
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                Enter your registered email address to receive a secure password reset link.
               </p>
             </div>
 
+            <div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                Email Address
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Mail size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="operator@hydrofusion.ai"
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem' }}
+                />
+              </div>
+            </div>
+
             <button
-              type="button"
+              type="submit"
               className="btn-primary"
-              onClick={() => switchMode('login')}
-              style={{ width: '100%', justifyContent: 'center' }}
+              disabled={loading}
+              style={{ marginTop: '0.5rem', width: '100%', justifyContent: 'center' }}
             >
-              <ArrowLeft size={16} /> Return to Sign In
+              {loading ? (
+                <>
+                  <RefreshCw size={16} className="pulse-active" /> Sending Email...
+                </>
+              ) : (
+                'Send Verification Email'
+              )}
             </button>
-          </div>
+
+            <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', margin: '0 auto' }}
+              >
+                <ArrowLeft size={14} /> Back to Sign In
+              </button>
+            </div>
+          </form>
         )}
+
+        {/* ---------------------------------------------------------------- */}
+        {/* VIEW 5: RESET PASSWORD (CREATE NEW PASSWORD)                     */}
+        {/* ---------------------------------------------------------------- */}
+        {mode === 'reset_password' && (
+          <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: '0.25rem' }}>
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.35rem' }}>
+                Create New Password
+              </h2>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                Please enter your new password below.
+              </p>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                New Password (min. 6 characters)
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{ position: 'absolute', right: '0.85rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'block', marginBottom: '0.35rem', fontWeight: 600 }}>
+                Confirm New Password
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} color="var(--text-dim)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  className="input-field"
+                  style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{ position: 'absolute', right: '0.85rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={loading}
+              style={{ marginTop: '0.5rem', width: '100%', justifyContent: 'center' }}
+            >
+              {loading ? (
+                <>
+                  <RefreshCw size={16} className="pulse-active" /> Resetting Password...
+                </>
+              ) : (
+                'Reset Password'
+              )}
+            </button>
+
+            <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => switchMode('login')}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', margin: '0 auto' }}
+              >
+                <ArrowLeft size={14} /> Back to Sign In
+              </button>
+            </div>
+          </form>
+        )}
+
 
       </div>
     </div>
   );
 };
+

@@ -1,7 +1,10 @@
 from flask import Blueprint, jsonify, request
 import datetime
+# pyrefly: ignore [missing-import]
 from backend.database import get_db_connection
+# pyrefly: ignore [missing-import]
 from backend.services.forecast_service import forecast_service
+# pyrefly: ignore [missing-import]
 from backend.models.ml_engine import scaling_engine
 
 report_bp = Blueprint('report', __name__, url_prefix='/api/report')

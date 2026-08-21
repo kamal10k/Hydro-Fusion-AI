@@ -1,9 +1,12 @@
 from flask import Blueprint, jsonify, request
+# pyrefly: ignore [missing-import]
 from backend.database import get_db_connection
 
 history_bp = Blueprint('history', __name__, url_prefix='/api')
 
+# pyrefly: ignore [missing-import]
 from backend.config import Config
+# pyrefly: ignore [missing-import]
 from backend.routes.auth_routes import get_current_user_from_request
 
 @history_bp.route('/history', methods=['GET'])

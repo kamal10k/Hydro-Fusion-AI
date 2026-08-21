@@ -1,5 +1,7 @@
 from flask import Blueprint, request, jsonify
+# pyrefly: ignore [missing-import]
 from backend.database import get_db_connection
+# pyrefly: ignore [missing-import]
 from backend.services.forecast_service import forecast_service
 
 forecast_bp = Blueprint('forecast', __name__, url_prefix='/api/forecast')

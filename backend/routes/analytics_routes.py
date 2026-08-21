@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 import datetime
+# pyrefly: ignore [missing-import]
 from backend.database import get_db_connection
 
 analytics_bp = Blueprint('analytics', __name__, url_prefix='/api/analytics')
@@ -77,8 +78,11 @@ def get_weekly_analytics():
         {'day': 'Sun (Today)', 'avg_tds': 580, 'avg_risk': 38.4, 'water_usage': 4500, 'saved_liters': 2250, 'savings_inr': 180.0}
     ]
 
+    # pyrefly: ignore [no-matching-overload]
     total_water = sum(d['water_usage'] for d in weekly_trend)
+    # pyrefly: ignore [no-matching-overload]
     total_saved = sum(d['saved_liters'] for d in weekly_trend)
+    # pyrefly: ignore [no-matching-overload]
     total_inr = round(sum(d['savings_inr'] for d in weekly_trend), 2)
 
     return jsonify({

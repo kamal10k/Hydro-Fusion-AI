@@ -1,5 +1,7 @@
 from flask import Blueprint, request, jsonify
+# pyrefly: ignore [missing-import]
 from backend.database import get_db_connection
+# pyrefly: ignore [missing-import]
 from backend.services.gemini_service import gemini_service
 
 chat_bp = Blueprint('chat', __name__, url_prefix='/api')

@@ -17,10 +17,8 @@ class Config:
     GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
     GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
     
-    # n8n Agentic Workflow Webhook
-    N8N_WEBHOOK_URL = os.environ.get("N8N_WEBHOOK_URL", "http://localhost:5678/webhook/scaling-alert")
-    
     # Model storage path
+
     MODEL_PATH = os.path.join(BASE_DIR, "models", "scaling_model.pkl")
 
     # Project Administrator & Email System Configuration
@@ -30,6 +28,9 @@ class Config:
     EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 587))
     EMAIL_USERNAME = os.environ.get("EMAIL_USERNAME", "")
     EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD", "")
-    EMAIL_FROM = os.environ.get("EMAIL_FROM", "noreply@hydrofusion.ai")
+    EMAIL_FROM = os.environ.get("EMAIL_FROM", "kamalaksha07k@gmail.com")
+    EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "HydroFusion-AI")
     FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+
+
 

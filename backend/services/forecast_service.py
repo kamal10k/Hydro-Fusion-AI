@@ -1,6 +1,8 @@
 import datetime
 import math
+# pyrefly: ignore [missing-import]
 from backend.models.ml_engine import scaling_engine
+# pyrefly: ignore [missing-import]
 from backend.models.blending_optimizer import optimizer
 
 class RiskForecastService:
@@ -73,15 +75,23 @@ class RiskForecastService:
         probabilities = []
 
         for h in horizons:
+            # pyrefly: ignore [bad-argument-type]
             target_time = now + datetime.timedelta(hours=h['hours_ahead'])
             
+            # pyrefly: ignore [unsupported-operation]
             p_gpu_temp = round(min(max(gpu_temp + (h['temp_delta'] * 0.8), 50.0), 98.0), 1)
+            # pyrefly: ignore [unsupported-operation]
             p_gpu_power = round(min(max(gpu_power + h['power_delta'], 30.0), 100.0), 1)
+            # pyrefly: ignore [unsupported-operation]
             p_amb_temp = round(min(max(amb_temp + h['temp_delta'], 15.0), 50.0), 1)
+            # pyrefly: ignore [unsupported-operation]
             p_water_temp = round(min(max(water_temp + (h['temp_delta'] * 0.5), 18.0), 45.0), 1)
+            # pyrefly: ignore [unsupported-operation]
             p_tds = round(min(max(tds + h['tds_delta'], 200.0), 1600.0), 1)
+            # pyrefly: ignore [unsupported-operation]
             p_ph = round(min(max(ph + (h['tds_delta'] / 600.0), 6.5), 9.2), 2)
             p_cond = round(p_tds * 1.32, 1)
+            # pyrefly: ignore [unsupported-operation]
             p_cycles = round(min(max(cycles + h['cycles_delta'], 2.0), 30.0), 1)
 
             horizon_telemetry = {
@@ -154,6 +164,7 @@ class RiskForecastService:
             'peak_risk_level': peak_point['forecasted_risk'],
             'forecast_points': forecast_points,
             'executive_insight': (
+                # pyrefly: ignore [missing-attribute]
                 f"24-hour scaling risk trajectory is {trend}. Peak scaling risk of {max_prob}% ({peak_point['forecasted_risk']}) "
                 f"is anticipated at {peak_point['target_timestamp']} ({peak_point['label']}) driven by {peak_point['driving_factor'].lower()} "
                 f"Preemptive blending shift to {peak_point['recommended_freshwater_ratio']}% Freshwater is recommended."

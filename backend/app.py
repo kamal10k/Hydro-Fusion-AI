@@ -2,17 +2,27 @@ import os
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 
+# pyrefly: ignore [missing-import]
 from backend.config import Config
+# pyrefly: ignore [missing-import]
 from backend.database import init_db, seed_sample_data
+# pyrefly: ignore [missing-import]
 from backend.routes.auth_routes import auth_bp
+# pyrefly: ignore [missing-import]
 from backend.routes.predict_routes import predict_bp
+# pyrefly: ignore [missing-import]
 from backend.routes.history_routes import history_bp
+# pyrefly: ignore [missing-import]
 from backend.routes.chat_routes import chat_bp
+# pyrefly: ignore [missing-import]
 from backend.routes.alert_routes import alert_bp
+# pyrefly: ignore [missing-import]
 from backend.routes.report_routes import report_bp
-from backend.routes.n8n_routes import n8n_bp
+# pyrefly: ignore [missing-import]
 from backend.routes.forecast_routes import forecast_bp
+# pyrefly: ignore [missing-import]
 from backend.routes.analytics_routes import analytics_bp
+
 
 dist_folder = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'dist'))
 
@@ -37,6 +47,7 @@ def create_app():
     if not os.path.exists(model_path):
         print("ML model binary missing on startup. Triggering initial dataset generation & Random Forest training...")
         try:
+            # pyrefly: ignore [missing-import]
             from backend.train_model import train_and_save_model
             train_and_save_model()
         except Exception as e:
@@ -49,9 +60,9 @@ def create_app():
     app.register_blueprint(chat_bp)
     app.register_blueprint(alert_bp)
     app.register_blueprint(report_bp)
-    app.register_blueprint(n8n_bp)
     app.register_blueprint(forecast_bp)
     app.register_blueprint(analytics_bp)
+
 
     @app.route('/api/health')
     def health():

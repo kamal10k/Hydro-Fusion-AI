@@ -9,7 +9,6 @@ import {
   History, 
   AlertTriangle, 
   FileText, 
-  Workflow,
   Droplets,
   ShieldCheck
 } from 'lucide-react';
@@ -24,9 +23,9 @@ export const Sidebar = ({ activeTab, setActiveTab }) => {
     { id: 'chat', label: 'Digital Chemist AI', icon: Bot, badge: 'Gemini AI' },
     { id: 'history', label: 'Prediction Logs', icon: History },
     { id: 'alerts', label: 'Scaling Alerts', icon: AlertTriangle },
-    { id: 'reports', label: 'Water Reports', icon: FileText },
-    { id: 'agentic-ai', label: 'Agent Workflows', icon: Workflow, badge: 'n8n' }
+    { id: 'reports', label: 'Water Reports', icon: FileText }
   ];
+
 
   return (
     <aside style={{
@@ -128,8 +127,9 @@ export const Sidebar = ({ activeTab, setActiveTab }) => {
       <div className="glass-panel" style={{ padding: '0.85rem', marginTop: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
           <ShieldCheck size={15} color="#10b981" />
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981' }}>ML & Agentic AI Suite</span>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981' }}>ML & Analytics Engine</span>
         </div>
+
         <p style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>
           4-Tier Risk • XAI Attribution • 24h Forecasting
         </p>

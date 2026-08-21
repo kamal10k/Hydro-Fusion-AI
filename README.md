@@ -11,9 +11,8 @@ HydroFusion AI analyzes cooling water chemistry and data-center thermal telemetr
 1. **Scikit-Learn Scaling Risk ML Engine**: Random Forest Classifier evaluating scaling risk (`LOW` vs. `HIGH`) and risk probability percentage based on thermodynamic saturation indexes.
 2. **Freshwater–Greywater Blending Optimizer**: Optimization algorithm calculating optimal dilution ratios to minimize municipal freshwater usage while keeping mineral concentrations below scaling thresholds.
 3. **Google Gemini AI Assistant ("The Digital Chemist")**: Natural language risk explanations, actionable maintenance recommendations, and interactive AI chatbot.
-4. **Agentic AI & n8n Workflow Orchestration**: 6-agent cascade (*Water Monitoring*, *Scaling Risk*, *Optimization*, *Decision*, *Maintenance*, *Alert*) dispatching automated notifications via n8n webhooks on high-risk events.
-5. **Interactive What-If Laboratory**: Sandbox environment allowing operators to adjust sliders for TDS, pH, GPU power, and cooling cycles to simulate real-time risk reduction.
-6. **Executive Dashboard & Reporting Suite**: Real-time telemetry cards, interactive Chart.js trend lines, historical audit tables with CSV export, and printable executive reports.
+4. **Interactive What-If Laboratory**: Sandbox environment allowing operators to adjust sliders for TDS, pH, GPU power, and cooling cycles to simulate real-time risk reduction.
+5. **Executive Dashboard & Reporting Suite**: Real-time telemetry cards, interactive Chart.js trend lines, historical audit tables with CSV export, and printable executive reports.
 
 ---
 
@@ -34,12 +33,7 @@ HydroFusion AI analyzes cooling water chemistry and data-center thermal telemetr
          │                              │                              │
          └──────────────────────────────┼──────────────────────────────┘
                                         ▼
-                          6-AGENTIC AI WORKFLOW ENGINE
-                   (Monitoring -> Risk -> Opt -> Alert)
-                                        │
-                                   n8n Webhook
-                                        ▼
-                           Automated Multi-Channel Alerts
+                            Real-Time Predictive Scaling Risk
 ```
 
 ---
@@ -68,9 +62,9 @@ HydroFusion AI analyzes cooling water chemistry and data-center thermal telemetr
 - **Backend**: Python 3.11+, Flask, Flask-CORS, Flask-Bcrypt, PyJWT, SQLite, SQLAlchemy.
 - **Machine Learning**: Scikit-Learn (Random Forest Classifier), Pandas, NumPy, Joblib.
 - **Generative AI**: Google Gemini API (`google-genai`).
-- **Agentic AI**: Multi-agent workflow orchestrator & n8n webhook dispatcher.
 - **Frontend**: React 19, Vite, Lucide Icons, Chart.js, React-Chartjs-2, Canvas-Confetti.
 - **Deployment**: Docker, Docker Compose, Render ready.
+
 
 ---
 
@@ -131,4 +125,6 @@ docker-compose up --build
 ## 📜 License
 
 Distributed under the MIT License. Developed for HydroFusion AI.
+
+
 

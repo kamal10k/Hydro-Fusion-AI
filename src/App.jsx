@@ -11,9 +11,9 @@ import { ChatbotPage } from './pages/ChatbotPage';
 import { HistoryPage } from './pages/HistoryPage';
 import { AlertsPage } from './pages/AlertsPage';
 import { ReportsPage } from './pages/ReportsPage';
-import { AgenticWorkflowPage } from './pages/AgenticWorkflowPage';
 import { LoginPage } from './pages/LoginPage';
 import { Droplets, RefreshCw } from 'lucide-react';
+
 
 const MainLayout = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -74,10 +74,9 @@ const MainLayout = () => {
         return <AlertsPage />;
       case 'reports':
         return <ReportsPage />;
-      case 'agentic-ai':
-        return <AgenticWorkflowPage />;
       default:
         return <DashboardPage setActiveTab={setActiveTab} />;
+
     }
   };
 

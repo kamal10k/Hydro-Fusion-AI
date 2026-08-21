@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+# pyrefly: ignore [missing-import]
 from backend.database import get_db_connection
 
 alert_bp = Blueprint('alert', __name__, url_prefix='/api/alerts')

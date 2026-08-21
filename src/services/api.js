@@ -28,8 +28,16 @@ export const api = {
   register: (name, email, password, confirmPassword, role = 'Operator', facilityName = 'Facility Alpha') => 
     request('/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password, confirm_password: confirmPassword, role, facility_name: facilityName }) }),
   forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token, newPassword, confirmPassword) => request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, new_password: newPassword, confirm_password: confirmPassword }) }),
   logout: () => request('/auth/logout', { method: 'POST' }),
+
   getMe: () => request('/auth/me'),
+  verifyLoginOtp: (loginAttemptId, otp) => request('/auth/verify-login-otp', { method: 'POST', body: JSON.stringify({ login_attempt_id: loginAttemptId, otp }) }),
+  resendLoginOtp: (loginAttemptId) => request('/auth/resend-login-otp', { method: 'POST', body: JSON.stringify({ login_attempt_id: loginAttemptId }) }),
+  verifyEmail: (registrationToken, code, email = '') => request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ registration_token: registrationToken, code, email }) }),
+  resendVerification: (registrationToken, email = '') => request('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ registration_token: registrationToken, email }) }),
+
+
 
 
 
@@ -61,8 +69,6 @@ export const api = {
   updateThresholds: (data) => request('/alerts/thresholds', { method: 'PUT', body: JSON.stringify(data) }),
 
   // Reports
-  getReportData: (predictionId = null) => request(`/report/export${predictionId ? `?prediction_id=${predictionId}` : ''}`),
-
-  // n8n Webhook Test
-  triggerN8nTest: (payload) => request('/n8n/webhook', { method: 'POST', body: JSON.stringify(payload) })
+  getReportData: (predictionId = null) => request(`/report/export${predictionId ? `?prediction_id=${predictionId}` : ''}`)
 };
+

@@ -1,7 +1,11 @@
 from flask import Blueprint, request, jsonify
+# pyrefly: ignore [missing-import]
 from backend.database import get_db_connection
-from backend.services.agentic_workflow import agentic_orchestrator
+# pyrefly: ignore [missing-import]
+from backend.services.gemini_service import gemini_service
+# pyrefly: ignore [missing-import]
 from backend.models.ml_engine import scaling_engine
+# pyrefly: ignore [missing-import]
 from backend.models.blending_optimizer import optimizer
 
 predict_bp = Blueprint('predict', __name__, url_prefix='/api')
@@ -53,6 +57,7 @@ def validate_input_payload(data):
         return False, errors
     return True, parsed_params
 
+# pyrefly: ignore [missing-import]
 from backend.routes.auth_routes import get_current_user_from_request
 
 @predict_bp.route('/predict', methods=['POST'])
@@ -93,11 +98,18 @@ def predict_scaling_risk():
             user_role = 'Admin'
             facility_name = 'Facility Alpha'
 
-    # Execute 6-Agent Agentic AI Workflow
-    workflow_result = agentic_orchestrator.run_agentic_pipeline(parsed_params, user_id=user_id)
-    pred_res = workflow_result['prediction_result']
-    blend_res = workflow_result['blending_result']
-    ai_resp = workflow_result['ai_response']
+    # Execute ML Engine, Blending Optimizer & Digital Chemist AI
+    pred_res = scaling_engine.predict(parsed_params)
+    blend_res = optimizer.calculate_optimal_blend(
+        pred_res['scaling_prediction'],
+        pred_res['risk_probability'],
+        parsed_params['tds'],
+        parsed_params['ph'],
+        parsed_params['conductivity'],
+        parsed_params['daily_water_usage'],
+        parsed_params['cooling_cycles']
+    )
+    ai_resp = gemini_service.generate_scaling_explanation(parsed_params, pred_res, blend_res)
 
     # Save prediction to DB with complete user and facility context
     cursor.execute('''
@@ -114,17 +126,29 @@ def predict_scaling_risk():
         user_email,
         user_role,
         facility_name,
+        # pyrefly: ignore [bad-index]
         parsed_params['gpu_temperature'],
+        # pyrefly: ignore [bad-index]
         parsed_params['gpu_power_load'],
+        # pyrefly: ignore [bad-index]
         parsed_params['ambient_temperature'],
+        # pyrefly: ignore [bad-index]
         parsed_params['humidity'],
+        # pyrefly: ignore [bad-index]
         parsed_params['water_temperature'],
+        # pyrefly: ignore [bad-index]
         parsed_params['tds'],
+        # pyrefly: ignore [bad-index]
         parsed_params['ph'],
+        # pyrefly: ignore [bad-index]
         parsed_params['conductivity'],
+        # pyrefly: ignore [bad-index]
         parsed_params['tower_age'],
+        # pyrefly: ignore [bad-index]
         parsed_params['cooling_cycles'],
+        # pyrefly: ignore [bad-index]
         parsed_params['flow_rate'],
+        # pyrefly: ignore [bad-index]
         parsed_params['daily_water_usage'],
         pred_res['scaling_prediction'],
         pred_res['risk_probability'],
@@ -167,10 +191,9 @@ def predict_scaling_risk():
         'disclaimer': blend_res['disclaimer'],
         'ai_explanation': ai_resp.get('explanation', ''),
         'ai_recommendations': ai_resp.get('recommendations', []),
-        'maintenance_tasks': workflow_result['maintenance_tasks'],
-        'agent_execution_trace': workflow_result['execution_trace'],
         'system_status': 'Attention Required' if pred_res['scaling_prediction'] in ['HIGH', 'CRITICAL'] else 'Normal Operation'
     }), 200
+
 
 @predict_bp.route('/simulate', methods=['POST'])
 def run_what_if_simulation():
@@ -188,10 +211,15 @@ def run_what_if_simulation():
     blend_res = optimizer.calculate_optimal_blend(
         pred_res['scaling_prediction'],
         pred_res['risk_probability'],
+        # pyrefly: ignore [bad-index]
         parsed_params['tds'],
+        # pyrefly: ignore [bad-index]
         parsed_params['ph'],
+        # pyrefly: ignore [bad-index]
         parsed_params['conductivity'],
+        # pyrefly: ignore [bad-index]
         parsed_params['daily_water_usage'],
+        # pyrefly: ignore [bad-index]
         parsed_params['cooling_cycles']
     )
 

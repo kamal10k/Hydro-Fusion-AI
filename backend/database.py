@@ -1,5 +1,6 @@
 import sqlite3
 import datetime
+# pyrefly: ignore [missing-import]
 from backend.config import Config
 
 def get_db_connection():
@@ -35,6 +36,10 @@ def init_db():
         cursor.execute("ALTER TABLE users ADD COLUMN is_verified INTEGER DEFAULT 0")
     if 'verification_token' not in user_cols:
         cursor.execute("ALTER TABLE users ADD COLUMN verification_token TEXT")
+    if 'google_sub' not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN google_sub TEXT")
+    if 'auth_provider' not in user_cols:
+        cursor.execute("ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'local'")
 
     # Drop password_resets table if exists from recent OTP changes
     cursor.execute("DROP TABLE IF EXISTS password_resets")
@@ -143,6 +148,51 @@ def init_db():
         )
     ''')
 
+    # LOGIN_OTPS table for two-factor login verification
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS login_otps (
+            otp_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            login_attempt_id TEXT UNIQUE NOT NULL,
+            user_id INTEGER NOT NULL,
+            otp_hash TEXT NOT NULL,
+            attempt_count INTEGER DEFAULT 0,
+            used INTEGER DEFAULT 0,
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (user_id)
+        )
+    ''')
+
+    # REGISTRATION_VERIFICATIONS table for new user registration email verification
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS registration_verifications (
+            verification_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            registration_token TEXT UNIQUE NOT NULL,
+            user_id INTEGER NOT NULL,
+            code_hash TEXT NOT NULL,
+            attempt_count INTEGER DEFAULT 0,
+            used INTEGER DEFAULT 0,
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (user_id)
+        )
+    ''')
+
+    # PASSWORD_RESET_TOKENS table for secure password reset links
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            reset_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            token_hash TEXT UNIQUE NOT NULL,
+            used INTEGER DEFAULT 0,
+            expires_at TIMESTAMP NOT NULL,
+            used_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (user_id)
+        )
+    ''')
+
+
     # Ensure schema migration on existing alerts table
     cursor.execute("PRAGMA table_info(alerts)")
     alert_cols = [col['name'] for col in cursor.fetchall()]
@@ -178,9 +228,9 @@ def seed_sample_data():
             VALUES (?, ?, ?, ?, ?, 1)
         ''', ('Kamalaksha Admin', admin_email, admin_pass_hash, Config.ADMIN_ROLE, 'Global Operations Center'))
 
+    # Ensure existing legacy/seed users without is_verified status set are verified
+    cursor.execute("UPDATE users SET is_verified = 1 WHERE is_verified IS NULL")
 
-    # Mark existing demo users as verified so demo logins work
-    cursor.execute("UPDATE users SET is_verified = 1 WHERE is_verified IS NULL OR is_verified = 0")
     
     cursor.execute("SELECT COUNT(*) as count FROM predictions")
     count = cursor.fetchone()['count']

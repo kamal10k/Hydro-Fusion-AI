@@ -101,8 +101,9 @@ export const AlertsPage = () => {
               Scaling Risk Alerts & Automated Incident Management
             </h2>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              Real-time multi-channel notifications dispatched via Agentic AI & n8n webhooks based on configurable system thresholds.
+              Real-time multi-channel incident notifications based on configurable system thresholds.
             </p>
+
           </div>
         </div>
 
